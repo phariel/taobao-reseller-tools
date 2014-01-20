@@ -1,0 +1,53 @@
+.gud {
+  padding: 20px 50px;
+}
+.login-panel {
+  width: 400px;
+}
+.func-area {
+  text-align: right;
+}
+.table-products img {
+  max-width: 100px;
+  max-height: 100px;
+}
+.table-products td,
+.table-products textarea {
+  width: 100px;
+  height: 100px;
+}
+.err-panel {
+  color: #fff;
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  top: 20px;
+  right: 20px;
+  padding: 10px 20px;
+  background: #ff0054;
+}
+.change-panel {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  bottom: 20px;
+  right: 20px;
+  padding: 10px;
+  background: #fdfdfd;
+  border: 1px solid #999;
+}
+.change-panel .btn {
+  min-width: 150px;
+}
+.gud .form-control,
+textarea {
+  border: 2px solid #ccc;
+}
+.gud .form-control.error,
+.gud .form-control.error.changed {
+  border-color: #ff0054;
+}
+.gud .form-control.changed,
+textarea.changed {
+  border-color: #8aca01;
+}

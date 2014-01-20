@@ -1,0 +1,31 @@
+{
+  "name": "taobao-reseller-tools",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "ejs": "*",
+    "less-middleware": "*",
+    "taobao": "~1.0.6",
+    "ejs-locals": "~1.0.2",
+    "request": "~2.31.0",
+    "express": "~3.4.7",
+    "mysql": "~2.0.0",
+    "MD5": "~1.2.0",
+    "async": "~0.2.9"
+  },
+  "description": "taobao-reseller-tools =====================",
+  "main": "app.js",
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/phariel/taobao-reseller-tools.git"
+  },
+  "author": "Phil Peng",
+  "license": "BSD",
+  "bugs": {
+    "url": "https://github.com/phariel/taobao-reseller-tools/issues"
+  }
+}
