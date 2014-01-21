@@ -29,12 +29,16 @@ exports.loginSvc = function(req, res) {
     var conn = connection();
     conn.connect();
     conn.query('SELECT * FROM whoami WHERE username = ?', [username], function(err, rows) {
-      console.log(err);
-      if (rows[0] && rows[0].password == md5(password)) {
-        loginuser.set(req, rows[0].username);
-        data.isSuccess = true;
-      }
       conn.end();
+      if (err) {
+        console.log('Login err: ' + err);
+        data.err = err;
+      } else {
+        if (rows[0] && rows[0].password == md5(password)) {
+          loginuser.set(req, rows[0].username);
+          data.isSuccess = true;
+        }
+      }
       res.end(JSON.stringify(data));
     });
   }
