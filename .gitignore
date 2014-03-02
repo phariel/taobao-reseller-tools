@@ -7,6 +7,9 @@ lib-cov
 *.pid
 *.gz
 
+.idea
+*.css
+
 pids
 logs
 results

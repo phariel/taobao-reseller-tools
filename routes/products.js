@@ -5,19 +5,23 @@ var utility = require('../config/utility');
 var urls = utility.urls;
 var localBaseUrl = urls.localBaseUrl;
 
-var productsExec = function(req, res, status) {
+var PAGE_SIZE = 40;
+
+var productsExec = function (req, res, status) {
   var loginuser = utility.loginuser.get(req, res);
+  var page = req.params.page;
   var conn = connection();
   var data = {
-    status: status
+    status: status,
+    currentPage: page
   };
   conn.connect();
 
 
   async.series([
 
-    function(cb) {
-      conn.query('SELECT * FROM products_json WHERE status = ? ORDER BY update_time DESC LIMIT 1', status, function(err, rows) {
+    function (cb) {
+      conn.query('SELECT * FROM products_json WHERE status = ? and batch_page = ? ORDER BY update_time DESC LIMIT 1', [status, page], function (err, rows) {
         if (err) {
           cb(err);
         } else {
@@ -30,8 +34,8 @@ var productsExec = function(req, res, status) {
         }
       });
     },
-    function(cb) {
-      conn.query('SELECT item_id,price_origin AS item_price_origin,comment AS item_comment,ali_seller_id AS seller_id FROM products_extend', function(err, rows) {
+    function (cb) {
+      conn.query('SELECT item_id,price_origin AS item_price_origin,comment AS item_comment,ali_seller_id AS seller_id FROM products_extend', function (err, rows) {
         if (err) {
           cb(err);
         } else {
@@ -39,12 +43,15 @@ var productsExec = function(req, res, status) {
         }
       });
     }
-  ], function(err, result) {
+  ], function (err, result) {
     if (err) {
       data.err = err;
       console.log(err);
     } else {
       data.json = result[0];
+      var totalResults = data['json']['total_results'];
+      data.pages = Math.ceil(totalResults / PAGE_SIZE);
+      console.log('pages: ' + data.pages + ' current page: ' + data.currentPage);
       var items = data.json.items.item;
       var extendItems = result[1];
       if (extendItems[0]) {
@@ -71,15 +78,19 @@ var productsExec = function(req, res, status) {
   });
 };
 
-exports.index = function(req, res) {
+exports.index = function (req, res) {
+  res.redirect('/products/onsale');
+};
+
+exports.onsale = function (req, res) {
   productsExec(req, res, 1);
 };
 
-exports.inventory = function(req, res) {
+exports.inventory = function (req, res) {
   productsExec(req, res, 2);
 };
 
-exports.update = function(req, res) {
+exports.update = function (req, res) {
   res.writeHead(200, {
     "Content-Type": "application/json"
   });
@@ -98,20 +109,20 @@ exports.update = function(req, res) {
 
     var conn = connection();
     conn.connect();
-    async.whilst(function() {
+    async.whilst(function () {
       return count < itemidArr.length;
-    }, function(next) {
+    }, function (next) {
       var itemid = itemidArr[count];
       var field = updateData[itemid];
 
       console.log(JSON.stringify(field));
-      conn.query('SELECT item_id FROM products_extend WHERE item_id = ?', itemid, function(err, result) {
+      conn.query('SELECT item_id FROM products_extend WHERE item_id = ?', itemid, function (err, result) {
         if (err) {
           data.err = err;
           data.isSuccess = false;
         } else {
           if (result[0]) {
-            conn.query('UPDATE products_extend SET ? WHERE item_id = ?', [field, itemid], function(err, rows) {
+            conn.query('UPDATE products_extend SET ? WHERE item_id = ?', [field, itemid], function (err, rows) {
               if (err) {
                 data.err = err;
                 data.isSuccess = false;
@@ -119,7 +130,7 @@ exports.update = function(req, res) {
             });
           } else {
             field.item_id = itemid;
-            conn.query('INSERT INTO products_extend SET ?', field, function(err, rows) {
+            conn.query('INSERT INTO products_extend SET ?', field, function (err, rows) {
               if (err) {
                 data.err = err;
                 data.isSuccess = false;
@@ -130,7 +141,7 @@ exports.update = function(req, res) {
         count++;
         next();
       });
-    }, function(err) {
+    }, function (err) {
       conn.end();
       res.end(JSON.stringify(data));
     });
@@ -141,30 +152,24 @@ exports.update = function(req, res) {
   }
 };
 
-exports.sync = function(req, res) {
+exports.sync = function (req, res) {
   var token = utility.token.get(req, res, '/products/sync');
   var loginuser = utility.loginuser.get(req, res);
   res.render('sync');
 };
 
-var syncExec = function(req, res, status) {
-  var token = utility.token.get(req, res, '/products/sync');
-  var loginuser = utility.loginuser.get(req, res);
-
-  var data = {};
-
+var fetchProduct = function (res, token, data, status, page, uniqueId) {
   var method = (status == 1) ? 'onsale' : 'inventory';
-
-  res.writeHead(200, {
-    "Content-Type": "application/json"
-  });
-
   taobao.core.call({
     method: 'taobao.items.' + method + '.get',
     fields: 'num_iid,price,title,seller_cids,pic_url',
-    session: token
-  }, function(body) {
+    session: token,
+    page_size: PAGE_SIZE,
+    page_no: page
+  }, function (body) {
     var bodyObj = JSON.parse(body);
+    var total_rerults = bodyObj['items_' + method + '_get_response']['total_results'];
+    var isLastPage = (total_rerults <= page * PAGE_SIZE);
     if (bodyObj.error_response) {
       data.err = bodyObj.error_response.msg;
       res.end(JSON.stringify(data));
@@ -174,25 +179,48 @@ var syncExec = function(req, res, status) {
       conn.query('INSERT INTO products_json SET ?', {
         json: encodeURIComponent(body),
         status: status,
-        update_time: utility.getMysqlDateTime()
-      }, function(err, result) {
+        update_time: utility.getMysqlDateTime(),
+        batch_id: uniqueId,
+        batch_page: page
+      }, function (err, result) {
         conn.end();
         if (err) {
           console.log(err);
           data.isSuccess = false;
         } else {
-          data.isSuccess = true;
+          if (isLastPage) {
+            data.isSuccess = true;
+            res.end(JSON.stringify(data));
+          } else {
+            page++;
+            fetchProduct(res, token, data, status, page, uniqueId);
+          }
         }
-        res.end(JSON.stringify(data));
       });
     }
   });
 };
 
-exports.sync.onsale = function(req, res) {
+var syncExec = function (req, res, status) {
+  var token = utility.token.get(req, res, '/products/sync');
+  var loginuser = utility.loginuser.get(req, res);
+
+  var data = {};
+
+
+  res.writeHead(200, {
+    "Content-Type": "application/json"
+  });
+
+  var uniqueId = Math.floor(Math.random() * 1000000);
+  fetchProduct(res, token, data, status, 1, uniqueId);
+
+};
+
+exports.sync.onsale = function (req, res) {
   syncExec(req, res, 1);
 };
 
-exports.sync.inventory = function(req, res) {
+exports.sync.inventory = function (req, res) {
   syncExec(req, res, 2);
 };
